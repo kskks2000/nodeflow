@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: nodeflow-backend
+Version: 0.1.0
+Summary: FastAPI backend for the NodeFlow TMS platform.
+Requires-Python: <3.15,>=3.12
+Requires-Dist: alembic>=1.14.0
+Requires-Dist: asyncpg>=0.30.0
+Requires-Dist: bcrypt>=4.2.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: pydantic-settings>=2.7.0
+Requires-Dist: pyjwt>=2.10.0
+Requires-Dist: sqlalchemy[asyncio]>=2.0.36
+Requires-Dist: uvicorn[standard]>=0.32.0
+Provides-Extra: dev
+Requires-Dist: httpx>=0.28.0; extra == "dev"
+Requires-Dist: pytest>=8.3.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.25.0; extra == "dev"
+Requires-Dist: ruff>=0.8.0; extra == "dev"
