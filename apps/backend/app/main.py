@@ -1,7 +1,8 @@
-from typing import Dict
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -32,9 +33,24 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 
-    @app.get("/", tags=["system"])
-    async def root() -> Dict[str, str]:
-        return {"name": settings.app_name, "status": "ok"}
+    frontend_dir = Path(__file__).resolve().parents[1] / "frontend_web"
+    index_file = frontend_dir / "index.html"
+
+    if index_file.exists():
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def frontend(full_path: str) -> FileResponse:
+            requested_path = (frontend_dir / full_path).resolve()
+            try:
+                requested_path.relative_to(frontend_dir)
+            except ValueError:
+                return FileResponse(index_file)
+            if requested_path.is_file():
+                return FileResponse(requested_path)
+            return FileResponse(index_file)
+    else:
+        @app.get("/", tags=["system"])
+        async def root() -> dict[str, str]:
+            return {"name": settings.app_name, "status": "ok"}
 
     return app
 
