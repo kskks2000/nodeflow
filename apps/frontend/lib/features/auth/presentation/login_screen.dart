@@ -22,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isSubmitting = false;
   String? _errorMessage;
-  LoginResponse? _session;
   bool _didApplyRoutePrefill = false;
 
   @override
@@ -80,7 +79,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
-      _session = null;
     });
 
     try {
@@ -97,16 +95,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       setState(() {
-        _session = response;
         _isSubmitting = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: NodeFlowColors.ink,
-          content: Text('${response.user.name}님, NodeFlow에 로그인되었습니다.'),
-        ),
-      );
+
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/main', (route) => false, arguments: response);
     } on AuthFailure catch (error) {
       if (!mounted) {
         return;
@@ -296,13 +290,6 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 22),
           if (_errorMessage != null) ...[
             _LoginMessage(message: _errorMessage!, isError: true),
-            const SizedBox(height: 14),
-          ],
-          if (_session != null) ...[
-            _LoginMessage(
-              message:
-                  '${_session!.tenant.name} / ${_session!.user.name} 로그인 완료',
-            ),
             const SizedBox(height: 14),
           ],
           const _ConnectionStrip(),

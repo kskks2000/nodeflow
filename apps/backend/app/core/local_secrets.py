@@ -1,8 +1,8 @@
-DB_HOST = "localhost"
+DB_HOST = "211.47.74.33"
 DB_PORT = 5432
-DB_NAME = "tms"
-DB_USER = "postgres"
-DB_PASSWORD = "Spring.2024$"
+DB_NAME = "dbkskks2000"
+DB_USER = "kskks2000"
+DB_PASSWORD = "greenred34!"
 
 JWT_SECRET_KEY = "nodeflow-local-dev-secret-change-before-production"
 
