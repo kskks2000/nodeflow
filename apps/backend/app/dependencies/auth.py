@@ -4,7 +4,7 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import TokenInvalid
+from app.core.exceptions import PermissionDenied, TokenInvalid
 from app.core.security import decode_token
 from app.dependencies.db import get_db_session
 from app.repositories.tenant_repository import TenantRepository
@@ -62,3 +62,19 @@ async def get_current_user(
         mfa_enabled=user.mfa_enabled,
         roles=roles,
     )
+
+
+def _has_admin_capability(current_user: CurrentUser) -> bool:
+    admin_user_types = {"ADMIN", "INTERNAL", "AUDITOR"}
+    admin_roles = {"ADMIN", "TENANT_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"}
+    if current_user.user_type.upper() in admin_user_types:
+        return True
+    return bool(admin_roles.intersection({role.upper() for role in current_user.roles}))
+
+
+async def require_admin_user(
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CurrentUser:
+    if not _has_admin_capability(current_user):
+        raise PermissionDenied()
+    return current_user

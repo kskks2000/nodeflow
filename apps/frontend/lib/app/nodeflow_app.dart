@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../features/admin/presentation/admin_console_screen.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/sign_up_screen.dart';
@@ -23,6 +24,7 @@ class NodeFlowApp extends StatelessWidget {
         '/sign-up': (context) => const SignUpScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/main': (context) => const TmsMainScreen(),
+        '/admin': (context) => const AdminConsoleScreen(),
         '/orders/new': (context) => const TransportOrderFormScreen(),
         '/dispatch/new': (context) => const NewDispatchScreen(),
       },

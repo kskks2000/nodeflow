@@ -26,6 +26,7 @@ class TmsMainScreen extends StatelessWidget {
                     tenantCode: tenantCode,
                     tenantName: tenantName,
                     userName: userName,
+                    session: session,
                   ),
                   Expanded(
                     child: _MainWorkspace(
@@ -45,6 +46,7 @@ class TmsMainScreen extends StatelessWidget {
                   tenantCode: tenantCode,
                   tenantName: tenantName,
                   userName: userName,
+                  session: session,
                 ),
                 Expanded(
                   child: _MainWorkspace(
@@ -77,11 +79,13 @@ class _Sidebar extends StatelessWidget {
     required this.tenantCode,
     required this.tenantName,
     required this.userName,
+    required this.session,
   });
 
   final String tenantCode;
   final String tenantName;
   final String userName;
+  final LoginResponse? session;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +122,14 @@ class _Sidebar extends StatelessWidget {
           const _NavItem(icon: Icons.fact_check_rounded, label: '실적 관리'),
           const _NavItem(icon: Icons.fact_check_rounded, label: '정산 관리'),
           const _NavItem(icon: Icons.analytics_rounded, label: '리포트'),
+          _NavItem(
+            icon: Icons.admin_panel_settings_rounded,
+            label: '관리자 콘솔',
+            onTap: () => Navigator.of(context).pushNamed(
+              '/admin',
+              arguments: session,
+            ),
+          ),
           const _NavItem(icon: Icons.settings_rounded, label: '환경 설정'),
           const Spacer(),
           const _SystemHealth(),
@@ -154,11 +166,13 @@ class _MobileHeader extends StatelessWidget {
     required this.tenantCode,
     required this.tenantName,
     required this.userName,
+    required this.session,
   });
 
   final String tenantCode;
   final String tenantName;
   final String userName;
+  final LoginResponse? session;
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +184,15 @@ class _MobileHeader extends StatelessWidget {
           Row(
             children: [
               const Expanded(child: _BrandHeader(onDark: true)),
+              _HeaderIconButton(
+                icon: Icons.admin_panel_settings_rounded,
+                tooltip: '관리자 콘솔',
+                onPressed: () {
+                  Navigator.of(context).pushNamed('/admin', arguments: session);
+                },
+                onDark: true,
+              ),
+              const SizedBox(width: 8),
               _HeaderIconButton(
                 icon: Icons.logout_rounded,
                 tooltip: '로그아웃',
@@ -499,6 +522,25 @@ class _CommandActions extends StatelessWidget {
           icon: Icons.tune_rounded,
           tooltip: '필터',
           onPressed: () {},
+        ),
+        SizedBox(
+          width: 166,
+          child: OutlinedButton.icon(
+            onPressed: () => Navigator.of(
+              context,
+            ).pushNamed('/admin', arguments: session),
+            icon: const Icon(Icons.admin_panel_settings_rounded),
+            label: const Text('관리자 콘솔'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: NodeFlowColors.deepBlue,
+              minimumSize: const Size.fromHeight(52),
+              side: const BorderSide(color: NodeFlowColors.softSlate),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
         ),
         SizedBox(
           width: 168,
@@ -1932,17 +1974,18 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     this.selected = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final item = Container(
       height: 44,
-      margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: selected
@@ -1969,6 +2012,17 @@ class _NavItem extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: onTap == null
+          ? item
+          : InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onTap,
+              child: item,
+            ),
     );
   }
 }
