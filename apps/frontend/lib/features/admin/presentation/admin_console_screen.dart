@@ -222,10 +222,9 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
             title: '관리자 세션 없음',
             body: _errorMessage ?? '로그인 후 다시 접근해 주세요.',
             actionLabel: '로그인',
-            onAction: () => Navigator.of(context).pushNamedAndRemoveUntil(
-              '/',
-              (route) => false,
-            ),
+            onAction: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/', (route) => false),
           ),
         ),
       );
@@ -243,9 +242,12 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
                   session: session,
                   isLoading: _isLoading,
                   onRefresh: _loadCurrentContent,
-                  onBackToTms: () => Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/main', (route) => false, arguments: session),
+                  onBackToTms: () =>
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/main',
+                        (route) => false,
+                        arguments: session,
+                      ),
                   onLogout: () => Navigator.of(
                     context,
                   ).pushNamedAndRemoveUntil('/', (route) => false),
@@ -271,7 +273,10 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       ),
       bottomNavigationBar: MediaQuery.sizeOf(context).width >= 1080
           ? null
-          : _MobileAdminNav(section: _section, onSectionSelected: _selectSection),
+          : _MobileAdminNav(
+              section: _section,
+              onSectionSelected: _selectSection,
+            ),
     );
   }
 
@@ -309,9 +314,12 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
             )
           else if (_section == _AdminSection.imports)
             _ImportView(
-              entities: _entities.where((entity) => entity.supportsImport).toList(),
+              entities: _entities
+                  .where((entity) => entity.supportsImport)
+                  .toList(),
               selectedEntityKey: _selectedEntityKey,
-              onEntityChanged: (key) => setState(() => _selectedEntityKey = key),
+              onEntityChanged: (key) =>
+                  setState(() => _selectedEntityKey = key),
               onImport: _importRows,
               isLoading: _isLoading,
             )
@@ -355,9 +363,16 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
     if (entity == null || session == null) {
       return;
     }
+    final referenceOptions = await _loadReferenceOptions(entity, session);
+    if (!mounted) {
+      return;
+    }
     final data = await showDialog<Map<String, Object?>>(
       context: context,
-      builder: (_) => _RecordEditorDialog(entity: entity),
+      builder: (_) => _RecordEditorDialog(
+        entity: entity,
+        referenceOptions: referenceOptions,
+      ),
     );
     if (data == null) {
       return;
@@ -385,9 +400,17 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
     if (id == null) {
       return;
     }
+    final referenceOptions = await _loadReferenceOptions(entity, session);
+    if (!mounted) {
+      return;
+    }
     final data = await showDialog<Map<String, Object?>>(
       context: context,
-      builder: (_) => _RecordEditorDialog(entity: entity, initialData: row),
+      builder: (_) => _RecordEditorDialog(
+        entity: entity,
+        initialData: row,
+        referenceOptions: referenceOptions,
+      ),
     );
     if (data == null) {
       return;
@@ -403,6 +426,41 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       _showSnack('${entity.label} 수정 완료');
     } on AdminFailure catch (error) {
       _showSnack(error.message, isError: true);
+    }
+  }
+
+  Future<Map<String, List<_ReferenceOption>>> _loadReferenceOptions(
+    AdminEntityDefinition entity,
+    LoginResponse session,
+  ) async {
+    final optionEntityKeys = entity.formFields
+        .map((field) => field.optionEntity)
+        .whereType<String>()
+        .toSet();
+    if (optionEntityKeys.isEmpty) {
+      return const {};
+    }
+
+    try {
+      final entries = await Future.wait(
+        optionEntityKeys.map((entityKey) async {
+          final records = await _apiClient.fetchRecords(
+            accessToken: session.accessToken,
+            entityKey: entityKey,
+            pageSize: 200,
+            activeOnly: true,
+          );
+          final options = records.rows
+              .map((row) => _ReferenceOption.fromRow(records.entity, row))
+              .whereType<_ReferenceOption>()
+              .toList(growable: false);
+          return MapEntry(entityKey, options);
+        }),
+      );
+      return Map<String, List<_ReferenceOption>>.fromEntries(entries);
+    } on AdminFailure catch (error) {
+      _showSnack(error.message, isError: true);
+      return const {};
     }
   }
 
@@ -469,7 +527,8 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       }
       await showDialog<void>(
         context: context,
-        builder: (_) => _CsvExportDialog(title: '${entity.label}.csv', csv: csv),
+        builder: (_) =>
+            _CsvExportDialog(title: '${entity.label}.csv', csv: csv),
       );
     } on AdminFailure catch (error) {
       _showSnack(error.message, isError: true);
@@ -565,7 +624,10 @@ class _AdminTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.admin_panel_settings_rounded, color: NodeFlowColors.deepBlue),
+          const Icon(
+            Icons.admin_panel_settings_rounded,
+            color: NodeFlowColors.deepBlue,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -654,10 +716,13 @@ class _MobileAdminNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedIndex = _mobileItems.indexWhere((item) => item.section == section);
+    final selectedIndex = _mobileItems.indexWhere(
+      (item) => item.section == section,
+    );
     return NavigationBar(
       selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
-      onDestinationSelected: (index) => onSectionSelected(_mobileItems[index].section),
+      onDestinationSelected: (index) =>
+          onSectionSelected(_mobileItems[index].section),
       destinations: [
         for (final item in _mobileItems)
           NavigationDestination(icon: Icon(item.icon), label: item.label),
@@ -803,7 +868,10 @@ class _EntityRecordsView extends StatelessWidget {
                   decoration: const InputDecoration(labelText: '관리 대상'),
                   items: [
                     for (final item in entities)
-                      DropdownMenuItem(value: item.key, child: Text(item.label)),
+                      DropdownMenuItem(
+                        value: item.key,
+                        child: Text(item.label),
+                      ),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -1023,7 +1091,11 @@ class _AuditLogView extends StatelessWidget {
                               DataCell(Text(_compactDateTime(row.createdAt))),
                               DataCell(Text(row.actionCode)),
                               DataCell(Text(row.resourceType)),
-                              DataCell(Text(row.resourceLabel ?? row.resourceId ?? '-')),
+                              DataCell(
+                                Text(
+                                  row.resourceLabel ?? row.resourceId ?? '-',
+                                ),
+                              ),
                               DataCell(Text(row.actorName ?? '-')),
                             ],
                           ),
@@ -1049,7 +1121,8 @@ class _ImportView extends StatefulWidget {
   final List<AdminEntityDefinition> entities;
   final String? selectedEntityKey;
   final ValueChanged<String> onEntityChanged;
-  final Future<void> Function(AdminEntityDefinition entity, String csvText) onImport;
+  final Future<void> Function(AdminEntityDefinition entity, String csvText)
+  onImport;
   final bool isLoading;
 
   @override
@@ -1091,7 +1164,10 @@ class _ImportViewState extends State<_ImportView> {
                   decoration: const InputDecoration(labelText: '업로드 대상'),
                   items: [
                     for (final item in widget.entities)
-                      DropdownMenuItem(value: item.key, child: Text(item.label)),
+                      DropdownMenuItem(
+                        value: item.key,
+                        child: Text(item.label),
+                      ),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -1117,7 +1193,8 @@ class _ImportViewState extends State<_ImportView> {
                 filled: true,
                 onPressed: selectedEntity == null || widget.isLoading
                     ? null
-                    : () => widget.onImport(selectedEntity, _csvController.text),
+                    : () =>
+                          widget.onImport(selectedEntity, _csvController.text),
               ),
             ],
           ),
@@ -1140,9 +1217,14 @@ class _ImportViewState extends State<_ImportView> {
 }
 
 class _RecordEditorDialog extends StatefulWidget {
-  const _RecordEditorDialog({required this.entity, this.initialData});
+  const _RecordEditorDialog({
+    required this.entity,
+    required this.referenceOptions,
+    this.initialData,
+  });
 
   final AdminEntityDefinition entity;
+  final Map<String, List<_ReferenceOption>> referenceOptions;
   final Map<String, Object?>? initialData;
 
   @override
@@ -1153,6 +1235,7 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, bool> _booleans = {};
+  final Map<String, int?> _selectedReferenceIds = {};
 
   @override
   void initState() {
@@ -1161,6 +1244,8 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
       final value = widget.initialData?[field.key];
       if (field.fieldType == 'boolean') {
         _booleans[field.key] = value == true;
+      } else if (field.optionEntity != null) {
+        _selectedReferenceIds[field.key] = _intValue(value);
       } else {
         _controllers[field.key] = TextEditingController(
           text: field.fieldType == 'json'
@@ -1182,7 +1267,11 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.initialData == null ? '${widget.entity.label} 등록' : '${widget.entity.label} 수정'),
+      title: Text(
+        widget.initialData == null
+            ? '${widget.entity.label} 등록'
+            : '${widget.entity.label} 수정',
+      ),
       content: SizedBox(
         width: 620,
         child: Form(
@@ -1205,10 +1294,7 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('취소'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('저장'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('저장')),
       ],
     );
   }
@@ -1217,11 +1303,15 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
     if (field.fieldType == 'boolean') {
       return CheckboxListTile(
         value: _booleans[field.key] ?? false,
-        onChanged: (value) => setState(() => _booleans[field.key] = value ?? false),
+        onChanged: (value) =>
+            setState(() => _booleans[field.key] = value ?? false),
         title: Text(field.label),
         controlAffinity: ListTileControlAffinity.leading,
         contentPadding: EdgeInsets.zero,
       );
+    }
+    if (field.optionEntity != null) {
+      return _buildReferenceField(field);
     }
     final controller = _controllers[field.key]!;
     final keyboardType = field.fieldType == 'number'
@@ -1234,18 +1324,69 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
-        helperText: field.optionEntity == null ? field.helpText : '${field.optionEntity} ID',
+        helperText: field.optionEntity == null
+            ? field.helpText
+            : '${field.optionEntity} ID',
       ),
       validator: (value) {
         if (field.required && (value == null || value.trim().isEmpty)) {
           return '${field.label} 필수';
         }
-        if (field.fieldType == 'json' && value != null && value.trim().isNotEmpty) {
+        if (field.fieldType == 'json' &&
+            value != null &&
+            value.trim().isNotEmpty) {
           try {
             jsonDecode(value);
           } on FormatException {
             return 'JSON 형식을 확인해 주세요.';
           }
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildReferenceField(AdminEntityField field) {
+    final optionEntity = field.optionEntity!;
+    final options =
+        widget.referenceOptions[optionEntity] ?? const <_ReferenceOption>[];
+    final selectedId = _selectedReferenceIds[field.key];
+    final items = [...options];
+    if (selectedId != null && !items.any((option) => option.id == selectedId)) {
+      items.add(_ReferenceOption(id: selectedId, label: 'ID $selectedId'));
+    }
+    final canSelect = items.isNotEmpty;
+
+    return DropdownButtonFormField<int>(
+      key: ValueKey('${field.key}:${selectedId ?? 'none'}:${items.length}'),
+      initialValue: selectedId,
+      isExpanded: true,
+      items: [
+        for (final option in items)
+          DropdownMenuItem<int>(
+            value: option.id,
+            child: Text(option.label, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: canSelect
+          ? (value) => setState(() => _selectedReferenceIds[field.key] = value)
+          : null,
+      decoration: InputDecoration(
+        labelText: field.required ? '${field.label} *' : field.label,
+        helperText: canSelect ? field.helpText : '$optionEntity 목록이 없습니다.',
+        suffixIcon: !field.required && selectedId != null
+            ? IconButton(
+                tooltip: '선택 해제',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () =>
+                    setState(() => _selectedReferenceIds[field.key] = null),
+              )
+            : null,
+      ),
+      hint: Text('${field.label} 선택'),
+      validator: (value) {
+        if (field.required && value == null) {
+          return '${field.label} 선택';
         }
         return null;
       },
@@ -1260,6 +1401,10 @@ class _RecordEditorDialogState extends State<_RecordEditorDialog> {
     for (final field in widget.entity.formFields) {
       if (field.fieldType == 'boolean') {
         data[field.key] = _booleans[field.key] ?? false;
+        continue;
+      }
+      if (field.optionEntity != null) {
+        data[field.key] = _selectedReferenceIds[field.key];
         continue;
       }
       final text = _controllers[field.key]?.text.trim() ?? '';
@@ -1380,7 +1525,9 @@ class _PanelTitle extends StatelessWidget {
       children: [
         Icon(icon, color: NodeFlowColors.deepBlue, size: 20),
         const SizedBox(width: 9),
-        Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+        ),
         if (trailing != null)
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
@@ -1441,7 +1588,11 @@ class _ActivityRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.change_circle_rounded, color: NodeFlowColors.mint, size: 20),
+          const Icon(
+            Icons.change_circle_rounded,
+            color: NodeFlowColors.mint,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1536,7 +1687,9 @@ class _IconAction extends StatelessWidget {
             padding: EdgeInsets.zero,
             foregroundColor: NodeFlowColors.deepBlue,
             side: const BorderSide(color: NodeFlowColors.softSlate),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: Icon(icon, size: 19),
         ),
@@ -1730,7 +1883,9 @@ class _SidebarItem extends StatelessWidget {
           height: 44,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: selected ? Colors.white.withValues(alpha: 0.14) : Colors.transparent,
+            color: selected
+                ? Colors.white.withValues(alpha: 0.14)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: selected
                 ? Border.all(color: Colors.white.withValues(alpha: 0.20))
@@ -1738,7 +1893,11 @@ class _SidebarItem extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(item.icon, color: selected ? Colors.white : Colors.white70, size: 20),
+              Icon(
+                item.icon,
+                color: selected ? Colors.white : Colors.white70,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1879,6 +2038,28 @@ const _mobileItems = [
   ),
 ];
 
+class _ReferenceOption {
+  const _ReferenceOption({required this.id, required this.label});
+
+  final int id;
+  final String label;
+
+  static _ReferenceOption? fromRow(
+    AdminEntityDefinition entity,
+    Map<String, Object?> row,
+  ) {
+    final id = _intValue(row[entity.idField]);
+    if (id == null) {
+      return null;
+    }
+    final title = _displayValue(row[entity.titleField]);
+    final code = _displayValue(row[_codeFieldKey(entity)]);
+    final primary = title.isEmpty ? 'ID $id' : title;
+    final label = code.isEmpty ? primary : '$primary ($code)';
+    return _ReferenceOption(id: id, label: label);
+  }
+}
+
 String _displayValue(Object? value) {
   if (value == null) {
     return '';
@@ -1887,6 +2068,15 @@ String _displayValue(Object? value) {
     return jsonEncode(value);
   }
   return '$value';
+}
+
+String? _codeFieldKey(AdminEntityDefinition entity) {
+  for (final field in entity.fields) {
+    if (field.key.endsWith('_code') || field.key == 'login_id') {
+      return field.key;
+    }
+  }
+  return null;
 }
 
 String _compactDateTime(String value) {
