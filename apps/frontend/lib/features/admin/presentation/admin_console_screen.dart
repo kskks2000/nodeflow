@@ -157,9 +157,17 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
   }
 
   void _selectSection(_AdminSection section) {
+    _selectAdminTarget(section: section);
+  }
+
+  void _selectNavItem(_NavItemData item) {
+    _selectAdminTarget(section: item.section, entityKey: item.entityKey);
+  }
+
+  void _selectAdminTarget({required _AdminSection section, String? entityKey}) {
     setState(() {
       _section = section;
-      _selectedEntityKey = _defaultEntityForSection(section);
+      _selectedEntityKey = entityKey ?? _defaultEntityForSection(section);
       _records = null;
       _auditLogs = null;
       _searchController.clear();
@@ -262,8 +270,9 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
               children: [
                 _AdminSidebar(
                   section: _section,
+                  selectedEntityKey: _selectedEntityKey,
                   session: session,
-                  onSectionSelected: _selectSection,
+                  onItemSelected: _selectNavItem,
                 ),
                 Expanded(child: shell),
               ],
@@ -293,15 +302,22 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       );
     }
 
+    final groupEntities = _entities
+        .where((entity) => entity.group == _groupForSection(_section))
+        .toList(growable: false);
+    final selectedEntity = _selectedEntity;
+    final pinMasterEntity =
+        wide && _section == _AdminSection.masters && selectedEntity != null;
+    final visibleEntities = pinMasterEntity
+        ? <AdminEntityDefinition>[selectedEntity]
+        : groupEntities;
+
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(wide ? 26 : 16, 18, wide ? 26 : 16, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeader(
-            title: _sectionTitle(_section),
-            subtitle: _sectionSubtitle(_section),
-          ),
+          _PageHeader(title: _pageTitle(), subtitle: _pageSubtitle()),
           const SizedBox(height: 16),
           if (_section == _AdminSection.dashboard)
             _OverviewView(overview: _overview, isLoading: _isLoading)
@@ -325,11 +341,10 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
             )
           else
             _EntityRecordsView(
-              entities: _entities
-                  .where((entity) => entity.group == _groupForSection(_section))
-                  .toList(growable: false),
-              selectedEntity: _selectedEntity,
+              entities: visibleEntities,
+              selectedEntity: selectedEntity,
               selectedEntityKey: _selectedEntityKey,
+              showEntitySelector: !pinMasterEntity,
               records: _records,
               searchController: _searchController,
               activeOnly: _activeOnly,
@@ -596,6 +611,22 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       _AdminSection.settings => '테넌트별 운영 기본값 관리',
     };
   }
+
+  String _pageTitle() {
+    final entity = _selectedEntity;
+    if (_section == _AdminSection.masters && entity != null) {
+      return '${entity.label} 관리';
+    }
+    return _sectionTitle(_section);
+  }
+
+  String _pageSubtitle() {
+    final entity = _selectedEntity;
+    if (_section == _AdminSection.masters && entity != null) {
+      return entity.description;
+    }
+    return _sectionSubtitle(_section);
+  }
 }
 
 class _AdminTopBar extends StatelessWidget {
@@ -668,13 +699,45 @@ class _AdminTopBar extends StatelessWidget {
 class _AdminSidebar extends StatelessWidget {
   const _AdminSidebar({
     required this.section,
+    required this.selectedEntityKey,
     required this.session,
-    required this.onSectionSelected,
+    required this.onItemSelected,
   });
 
   final _AdminSection section;
+  final String? selectedEntityKey;
   final LoginResponse session;
-  final ValueChanged<_AdminSection> onSectionSelected;
+  final ValueChanged<_NavItemData> onItemSelected;
+
+  List<Widget> _buildNavItems() {
+    final widgets = <Widget>[];
+    String? previousGroup;
+    for (final item in _navItems) {
+      if (item.groupLabel != null && item.groupLabel != previousGroup) {
+        if (widgets.isNotEmpty) {
+          widgets.add(const SizedBox(height: 12));
+        }
+        widgets.add(_SidebarLabel(item.groupLabel!));
+        widgets.add(const SizedBox(height: 8));
+      }
+      widgets.add(
+        _SidebarItem(
+          item: item,
+          selected: _isSelected(item),
+          onTap: () => onItemSelected(item),
+        ),
+      );
+      previousGroup = item.groupLabel;
+    }
+    return widgets;
+  }
+
+  bool _isSelected(_NavItemData item) {
+    if (item.entityKey != null) {
+      return section == item.section && selectedEntityKey == item.entityKey;
+    }
+    return section == item.section;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -691,13 +754,15 @@ class _AdminSidebar extends StatelessWidget {
           const SizedBox(height: 24),
           const _SidebarLabel('ADMIN'),
           const SizedBox(height: 8),
-          for (final item in _navItems)
-            _SidebarItem(
-              item: item,
-              selected: section == item.section,
-              onTap: () => onSectionSelected(item.section),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _buildNavItems(),
+              ),
             ),
-          const Spacer(),
+          ),
+          const SizedBox(height: 16),
           const _AdminHealthBlock(),
         ],
       ),
@@ -812,6 +877,7 @@ class _EntityRecordsView extends StatelessWidget {
     required this.entities,
     required this.selectedEntity,
     required this.selectedEntityKey,
+    required this.showEntitySelector,
     required this.records,
     required this.searchController,
     required this.activeOnly,
@@ -828,6 +894,7 @@ class _EntityRecordsView extends StatelessWidget {
   final List<AdminEntityDefinition> entities;
   final AdminEntityDefinition? selectedEntity;
   final String? selectedEntityKey;
+  final bool showEntitySelector;
   final AdminRecordListResponse? records;
   final TextEditingController searchController;
   final bool activeOnly;
@@ -861,25 +928,26 @@ class _EntityRecordsView extends StatelessWidget {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SizedBox(
-                width: 240,
-                child: DropdownButtonFormField<String>(
-                  initialValue: selectedEntityKey,
-                  decoration: const InputDecoration(labelText: '관리 대상'),
-                  items: [
-                    for (final item in entities)
-                      DropdownMenuItem(
-                        value: item.key,
-                        child: Text(item.label),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      onEntityChanged(value);
-                    }
-                  },
+              if (showEntitySelector)
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: selectedEntityKey,
+                    decoration: const InputDecoration(labelText: '관리 대상'),
+                    items: [
+                      for (final item in entities)
+                        DropdownMenuItem(
+                          value: item.key,
+                          child: Text(item.label),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        onEntityChanged(value);
+                      }
+                    },
+                  ),
                 ),
-              ),
               SizedBox(
                 width: 320,
                 child: TextField(
@@ -1960,11 +2028,15 @@ class _NavItemData {
     required this.section,
     required this.icon,
     required this.label,
+    this.entityKey,
+    this.groupLabel,
   });
 
   final _AdminSection section;
   final IconData icon;
   final String label;
+  final String? entityKey;
+  final String? groupLabel;
 }
 
 const _navItems = [
@@ -1974,39 +2046,96 @@ const _navItems = [
     label: '대시보드',
   ),
   _NavItemData(
-    section: _AdminSection.codes,
-    icon: Icons.hub_rounded,
-    label: '공통코드',
+    section: _AdminSection.masters,
+    icon: Icons.business_rounded,
+    label: '회사',
+    entityKey: 'companies',
+    groupLabel: '기본정보',
   ),
   _NavItemData(
     section: _AdminSection.masters,
-    icon: Icons.dataset_rounded,
-    label: '마스터',
+    icon: Icons.account_tree_rounded,
+    label: '지점',
+    entityKey: 'branches',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.groups_rounded,
+    label: '거래처',
+    entityKey: 'business_partners',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.store_rounded,
+    label: '고객사',
+    entityKey: 'customers',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.local_shipping_rounded,
+    label: '운송사',
+    entityKey: 'carriers',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.badge_rounded,
+    label: '기사',
+    entityKey: 'drivers',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.directions_car_rounded,
+    label: '차량',
+    entityKey: 'vehicles',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.masters,
+    icon: Icons.location_on_rounded,
+    label: '거점',
+    entityKey: 'locations',
+    groupLabel: '기본정보',
+  ),
+  _NavItemData(
+    section: _AdminSection.codes,
+    icon: Icons.hub_rounded,
+    label: '공통코드',
+    groupLabel: '운영관리',
   ),
   _NavItemData(
     section: _AdminSection.rules,
     icon: Icons.rule_rounded,
     label: '규칙',
+    groupLabel: '운영관리',
   ),
   _NavItemData(
     section: _AdminSection.security,
     icon: Icons.verified_user_rounded,
     label: '사용자/권한',
+    groupLabel: '운영관리',
   ),
   _NavItemData(
     section: _AdminSection.imports,
     icon: Icons.upload_file_rounded,
     label: '일괄 업로드',
+    groupLabel: '운영관리',
   ),
   _NavItemData(
     section: _AdminSection.audit,
     icon: Icons.manage_search_rounded,
     label: '감사로그',
+    groupLabel: '운영관리',
   ),
   _NavItemData(
     section: _AdminSection.settings,
     icon: Icons.settings_rounded,
     label: '시스템 설정',
+    groupLabel: '운영관리',
   ),
 ];
 
